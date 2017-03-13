@@ -1,3 +1,1 @@
 # ACWEBIRC
-
-Notifico Test
