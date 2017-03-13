@@ -2,6 +2,8 @@ function Webchat(nickname, debug) {
     var me = {
         connected: false,
         userInfo: {nick: nickname},
+        serverInfo: {caps:[]},
+        supportedCaps: ['sasl', 'away-notify'],
         debugMode: debug
     },
         ws = [];
@@ -68,16 +70,32 @@ function Webchat(nickname, debug) {
                 params.push(tokens.shift());
             }
         }
+        
+        console.log(prefix);
+        console.log(command);
+        console.log(params);
 
         switch (command) {
             case 'PING':
                 sendData("PONG " + params[0]);
                 break;
+            case 'CAP':
+                if (params[1] == 'LS') {
+                    var toSend = [];
+                    arr = params[2].split(' ');
+                    arr.forEach(function(value) {
+                        if ($.inArray(value, me.supportedCaps) != -1) {
+                            console.log("Both us and the server support " + value);
+                            toSend.push(value);
+                        }
+                    });
+                    sendData("CAP REQ :" + toSend.join(' '));
+                }
+                if (params[1] == 'ACK') {
+                    sendData("CAP END");
+                }
+                break;
         }
-
-        console.log(prefix);
-        console.log(command);
-        console.log(params);
     }
 
     function sendData(data) {
@@ -98,8 +116,9 @@ function Webchat(nickname, debug) {
         ws.onmessage = function(e) { parseData(e.data); };
         ws.onopen = function (e) {
             me.connected = true;
+            sendData("CAP LS 301");
             sendData("NICK " + me.userInfo.nick);
-            sendData("USER acwebchat * * :AlphaChat WebChat");
+            sendData("USER acwebchat * * :AlphaChat WebChat")
         };
         ws.onclose = function (e) {
             me.connected = false;
