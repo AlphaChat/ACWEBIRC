@@ -495,7 +495,7 @@ function Webchat(nickname, debug) {
             u.addChan(c);
             c.addUser(u);
 
-            var joinmsg = "--> " + u.nick + " " + (account ? "[" + account + "] " : "") + (realname ? "(" + realname + ") " : "") + " has joined #" + name;
+            var joinmsg = "--> " + u.nick + " " + (account ? "[" + account + "] " : "") + (realname ? "(" + realname + ") " : "") + "(" + u.userHost() +") has joined #" + name;
             c.print("user-join", joinmsg);
 
             // TODO: update the nicklist
@@ -523,7 +523,7 @@ function Webchat(nickname, debug) {
             c.delUser(u.nick);
             u.delChan(c.name);
 
-            c.print("user-part", "<-- " + u.nick + " parted #" + name + ( reason ? " (" + reason + ")" : "" ));
+            c.print("user-part", "<-- " + u.nick + " (" + u.userHost() +") parted #" + name + ( reason ? " (" + reason + ")" : "" ));
             // TODO: remove user from the nicklist
         });
 
