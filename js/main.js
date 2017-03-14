@@ -6,7 +6,7 @@ function Webchat(nickname, debug) {
         channels: [ ],
         queries: [ ],
         serverInfo: {caps:[]},
-        supportedCaps: ['sasl', 'away-notify', 'extended-join'],
+        supportedCaps: ['sasl', 'away-notify', 'extended-join', 'chghost'],
         enabledCaps: [ ],
         debugMode: debug
     },
@@ -345,13 +345,15 @@ function Webchat(nickname, debug) {
                     me.channels.splice(idx, 1);
 
                 // TODO: destroy the buffer
+                return;
             }
-            // TODO: show the user parting, remove them from the nicklist
+            appendChanBuffer(chan, "user-part", "<-- " + nick + " has parted #" + chan);
+            // TODO: remove user from the nicklist
         });
 
         on("irc cmd quit", function(msg) {
 
-            // TODO: show the user quitting on ALL buffers, remove them from ALL nicklists
+            // TODO: find each buffer a user is in and display them quitting + delete from nicklist
 
         });
 
@@ -385,6 +387,15 @@ function Webchat(nickname, debug) {
                 appendChanBuffer(target, "user-chan-msg", "&lt;" + nick + "&gt; " + text);
             }
 
+        });
+
+        on("irc cmd chghost", function(msg) {
+
+            // sileneces the extremely annoying fake quit/join for changed hosts
+            var newhost = msg.params[0] + "@" + msg.params[1];
+            var nuh = msg.prefix.split("!", 1);
+
+            appendChanBuffer("--- " + nuh[0] + " changed host from (" + nuh[1] + ") to (" + newhost + ")");
         });
 
         // Return ourselves
