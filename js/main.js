@@ -256,7 +256,7 @@ function Webchat(nickname, debug) {
         ws.onmessage = function(e) { parseData(e.data); };
         ws.onopen = function (e) {
             me.connected = true;
-            sendData("CAP LS 301");
+            sendData("CAP LS 302");
             sendData("NICK " + me.userInfo.nick);
             sendData("USER acwebchat * * :AlphaChat WebChat");
         };
