@@ -3,12 +3,20 @@ function Webchat(nickname, debug) {
     var me = {
         connected: false,
         userInfo: {nick: nickname},
+        channels: [ ],
+        queries: [ ],
         serverInfo: {caps:[]},
-        supportedCaps: ['sasl', 'away-notify'],
+        supportedCaps: ['sasl', 'away-notify', 'extended-join'],
+        enabledCaps: [ ],
         debugMode: debug
     },
     ws = [],
+
     signals = {};
+    signals_pending = [];
+
+    var EAT_NONE = 1; // the default, keep emitting this signal
+    var EAT_ALL = 4;  // if any callback returns this, stop emitting
 
     me.disconnect = function () {
         if (ws) {
@@ -20,6 +28,13 @@ function Webchat(nickname, debug) {
         }
     };
 
+    me.capIsEnabled = function(cap) {
+
+        if (me.enabledCaps.indexOf(cap) !== -1)
+            return true;
+        return false;
+    };
+
     function on(ev_name, ev_cb) {
 
         if(signals[ev_name]) {
@@ -29,31 +44,67 @@ function Webchat(nickname, debug) {
         }
     }
 
+    /** a note on this emit/emit_now business
+    *
+    * emit() will queue an event to run as soon as possible, meaning it will let all other emit() calls
+    * that occured before it to run first. if the queue is empty, emit() shorcuts right to emit_now().
+    *
+    * emit_now() will fire 1 event, then check to see if there are any pending events to run. if there's
+    * no work to do, it shuts down and waits for emit() to start it back up.
+    * -- sam
+    **/
+
     function emit(ev_name, args) {
 
-        if(! signals[ev_name]) {
-            //console.log("[WARNING] no event handler for '" + ev_name + "'");
-            return;
+        // if there are pending signals, queue this to run as soon as possible
+        // otherwise, run it now
+
+        if(signals_pending.length) {
+            signals_pending.append([ ev_name, args ]);
+        } else {
+            emit_now(ev_name, args);
         }
 
-        console.log("[DEBUG] emitting " + ev_name);
+    }
 
-        signals[ev_name].forEach(function(ev_cb, index, array) {
-            try {
-                ev_cb(args);
-            } catch(err) {
-                console.log("[CRITICAL] error in " + ev_name + " callback " + ev_cb + ": " + err.message);
+    function emit_now(ev_name, args) {
+        function _emit(ev_name, args) {
+            if(! signals[ev_name]) {
+                // no subscribers to this event so don't even bother.
+                return;
             }
-        });
+
+            var retval = EAT_NONE;
+            signals[ev_name].forEach(function(ev_cb, index, array) {
+                try {
+                    retval = ev_cb(args);
+                } catch(err) {
+                    console.log("[CRITICAL] error in " + ev_name + " callback " + ev_cb + ": " + err.message);
+                }
+
+                if (retval === EAT_ALL)
+                    return;
+            });
+        }
+        _emit(ev_name, args);
+
+        // runs until there are no more left to emit
+        while(signals_pending.length) {
+            next = signals_pending.shift();
+            _emit(next[0], next[1]);
+        }
+
     }
 
     function parseData(data) {
+        data = data.trim();
+
         if (me.debugMode) {
             console.log("[DEBUG] Parsing " + data);
-            $("#ircData").append("<p> " + data + " </p><br />");
+            $("#ircData").append("<p>" + data + "</p>");
         }
 
-        var tokens = data.trim().split(' '),
+        var tokens = data.split(' '),
             tags = {},
             prefix, command,
             params = [];
@@ -172,6 +223,31 @@ function Webchat(nickname, debug) {
         sendData(buildMessage(msg));
     }
 
+    function createChanBuffer(chan) {
+
+        $('#buffers').append('<div role="tabpanel" class="tab-pane fade" id="chan-' + chan +'"></div>');
+        $('#menu-content').append('<li id="tab-chan-'+ chan + '"><a href="#chan-'+ chan + '" aria-controls="chan-' + chan + '" role="tab" data-toggle="tab"><i class="fa fa-hashtag fa-lg"></i> ' + chan + ' <span class="badge">3</span></a></li>');
+    }
+
+    function createQueryBuffer(query) {
+        me.queries.push(query);
+
+        $('#buffers').append('<div role="tabpanel" class="tab-pane fade" id="query-' + query +'"></div>');
+        $('#menu-content').append('<li id="tab-query-'+ query + '"><a href="#query-'+ query + '" aria-controls="query-' + query + '" role="tab" data-toggle="tab"><i class="fa fa-comments fa-lg"></i> ' + query + ' <span class="badge">3</span></a></li>');
+    }
+
+    function appendBuffer(buffer, event, message) {
+        $('#' + buffer).append('<p class="event ' + event + '">' + message + "</p>");
+    }
+
+    function appendChanBuffer(chan, event, message) {
+        appendBuffer("chan-" + chan, event, message);
+    }
+
+    function appendQueryBuffer(query, event, message) {
+        appendBuffer("query-" + query, event, message);
+    }
+
     function construct() {
         // Initialize the WebSocket object
         ws = new SockJS("http://acwebirc.gentoo.party:26667/webirc/sockjs");
@@ -191,7 +267,7 @@ function Webchat(nickname, debug) {
 
             sendMsg({
                 command: "PONG",
-                params: msg.params || [ ]
+                params: msg.params || [ ] // handles servers with and without the pingcookie
             });
 
         });
@@ -201,11 +277,17 @@ function Webchat(nickname, debug) {
             // FIXME: proper CAPAB negotiation
             switch(msg.params[1]) {
                 case "LS":
+                    if(! msg.params[2]) {
+                        // no capabilities available
+                        sendMsg({ command: "CAP", params: [ "END" ] });
+                        return;
+                    }
                     var capabs = msg.params[2].split(' ');
                     var toSend = [ ];
                      capabs.forEach(function(value) {
                         if ($.inArray(value, me.supportedCaps) != -1) {
                             toSend.push(value);
+                            me.enabledCaps.push(value);
                         }
                     });
                     sendMsg({ command: "CAP", params: [ "REQ", toSend.join(" ") ] });
@@ -214,6 +296,95 @@ function Webchat(nickname, debug) {
                     sendMsg({ command: "CAP", params: [ "END" ] });
                     break;
             }
+        });
+
+        on("irc cmd 433", function(msg) {
+
+            me.userInfo.nick += "_";
+            sendMsg({ command: "NICK", params: [ me.userInfo.nick ] });
+        });
+
+        on("irc cmd join", function(msg) {
+
+            // someone (possibly us) joined a channel
+            var chan = msg.params[0].toLowerCase().substring(1);
+            var nick = msg.prefix.split('!')[0];
+
+            var account, realname;
+
+            if (me.capIsEnabled("extended-join")) {
+                account = (msg.params[1] === '*' ? null : msg.params[1]);
+                realname = msg.params[2];
+            }
+
+            var joinmsg = "--> " + nick + " " + (account ? "[" + account + "] " : "") + (realname ? "(" + realname + ") " : "") + " has joined #" + chan;
+
+            // TODO: lol fix this to use the correct casemapping xD
+            if (nick === me.userInfo.nick) {
+
+                if (me.channels.indexOf(chan) !== -1)
+                    return; // uh we're already on that channel
+
+                me.channels.push(chan);
+                createChanBuffer(chan);
+            }
+
+            appendChanBuffer(chan, "user-join", joinmsg);
+            // TODO: update the nicklist
+        });
+
+        on("irc cmd part", function(msg) {
+
+            // someone (possibly us) left a channel
+            var chan = msg.params[0];
+
+            if (msg.prefix.startsWith(me.userInfo.nick)) {
+
+                var idx = me.channels.indexOf(chan);
+                if (idx !== -1)
+                    me.channels.splice(idx, 1);
+
+                // TODO: destroy the buffer
+            }
+            // TODO: show the user parting, remove them from the nicklist
+        });
+
+        on("irc cmd quit", function(msg) {
+
+            // TODO: show the user quitting on ALL buffers, remove them from ALL nicklists
+
+        });
+
+        on("irc cmd nick", function(msg) {
+
+            // someone changed their nick, possibly us
+            var newnick = msg.params[0];
+
+            if (msg.prefix.startsWith(me.userInfo.nick)) {
+
+                me.userInfo.nick = newnick;
+                // TODO: update any internal labels that display our nick to the user,
+            }
+            // TOCO: update all nicklists across all buffers
+        });
+
+        on("irc cmd privmsg", function(msg) {
+
+            var target = msg.params[0].toLowerCase().substring(1);
+            var text = msg.params[1];
+            var nick = msg.prefix.split('!')[0];
+
+            if (me.channels.indexOf(target) === -1) {
+
+                if (me.queries.indexOf(nick) === -1)
+                    createQueryBuffer(nick);
+
+                appendQueryBuffer(nick, "user-query-msg", "&lt;" + nick + "&gt; " + text);
+
+            } else {
+                appendChanBuffer(target, "user-chan-msg", "&lt;" + nick + "&gt; " + text);
+            }
+
         });
 
         // Return ourselves

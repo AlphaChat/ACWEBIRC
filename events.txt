@@ -1,0 +1,4 @@
+CSS events
+
+user-chan-msg           when someone sends a privmsg to a channel (not us)
+user-query-msg          privmsg to us in private

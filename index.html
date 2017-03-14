@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="//maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet">
+    <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet">
     <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
     <title>AlphaChat WebIRC</title>
     <style>
@@ -40,7 +40,7 @@
             width: calc(100% - 300px);
             left: 300px;
         }
-        #ircData { 
+        #ircData {
             overflow-y: scroll;
             overflow-x: none;
             max-height: 100%;
@@ -200,21 +200,6 @@
                       <i class="fa fa-server fa-lg"></i> Server
                       </a>
                     </li>
-                    <li>
-                      <a href="#chan-lobby" aria-controls="chan-lobby" role="tab" data-toggle="tab">
-                      <i class="fa fa-hashtag fa-lg"></i> #lobby <span class="badge">5</span>
-                      </a>
-                    </li>
-                    <li>
-                      <a href="#">
-                      <i class="fa fa-hashtag fa-lg"></i> #nightowls <span class="badge">3</span>
-                      </a>
-                    </li>
-                    <li>
-                      <a href="#">
-                      <i class="fa fa-comments fa-lg"></i> Aaron <span class="badge">5</span>
-                      </a>
-                    </li>
                 </ul>
          </div>
     </div>
@@ -242,8 +227,8 @@
               if (e.which == 13) {
                   $.webirc.send($(this).val());
                   $(this).val('');
-              } 
-           }); 
+              }
+           });
         });
     </script>
   </body>
