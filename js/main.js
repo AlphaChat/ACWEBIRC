@@ -32,7 +32,7 @@ function Webchat(nickname, debug) {
 
         this.userHost = function() {
 
-            return nick.user + "@" + nick.host;
+            return this.user + "@" + this.host;
         };
 
         this.findChan = function(name) {
@@ -489,12 +489,11 @@ function Webchat(nickname, debug) {
             u = findUser(msg.prefix);
             if (! u) {
                 u = new User(msg.prefix, realname, account);
-
-                u.addChan(c);
-                c.addUser(u);
-
                 addUser(u);
             }
+
+            u.addChan(c);
+            c.addUser(u);
 
             var joinmsg = "--> " + u.nick + " " + (account ? "[" + account + "] " : "") + (realname ? "(" + realname + ") " : "") + " has joined #" + name;
             c.print("user-join", joinmsg);
@@ -537,7 +536,7 @@ function Webchat(nickname, debug) {
             if(! u)
                 return;
 
-            u.channels.forEach(function(c) {
+            Object.values(u.channels).forEach(function(c) {
 
                 c.delUser(u.nick);
                 c.print("user-quit", "<-- " + u.nick + " (" + u.userHost() + ") quit" + (reason ? " (" + reason + ")" : ""));
