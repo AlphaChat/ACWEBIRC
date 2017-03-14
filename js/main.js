@@ -224,6 +224,7 @@ function Webchat(nickname, debug) {
     }
 
     function createChanBuffer(chan) {
+        me.channels.push(chan);
 
         $('#buffers').append('<div role="tabpanel" class="tab-pane fade" id="chan-' + chan +'"></div>');
         $('#menu-content').append('<li id="tab-chan-'+ chan + '"><a href="#chan-'+ chan + '" aria-controls="chan-' + chan + '" role="tab" data-toggle="tab"><i class="fa fa-hashtag fa-lg"></i> ' + chan + ' <span class="badge">3</span></a></li>');
@@ -325,7 +326,6 @@ function Webchat(nickname, debug) {
                 if (me.channels.indexOf(chan) !== -1)
                     return; // uh we're already on that channel
 
-                me.channels.push(chan);
                 createChanBuffer(chan);
             }
 
