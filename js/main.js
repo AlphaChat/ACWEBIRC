@@ -70,8 +70,13 @@ function Webchat(nickname, debug) {
 
         this.createBuffer = function() {
             this.hasBuffer = true;
-            $('#buffers').append('<div role="tabpanel" class="tab-pane fade" id="query-' + this.nick +'"></div>');
-            $('#menu-content').append('<li id="tab-query-'+ this.nick + '"><a href="#query-'+ this.nick + '" aria-controls="query-' + this.nick + '" role="tab" data-toggle="tab"><i class="fa fa-comments fa-lg"></i> ' + this.nick + ' <span class="badge">3</span></a></li>');
+            $('#buffers').append('<div role="tabpanel" class="tab-pane fade" id="query-' +
+                this.nick +'"></div>');
+
+            $('#menu-content').append('<li id="tab-query-' + this.nick +
+                '"><a href="#query-'+ this.nick + '" aria-controls="query-' + this.nick +
+                '" role="tab" data-toggle="tab"><i class="fa fa-comments fa-lg"></i> ' +
+                this.nick + ' <span class="badge">3</span></a></li>');
         };
 
         this.appendBuffer = function(event, message) {
@@ -79,7 +84,8 @@ function Webchat(nickname, debug) {
                 this.createBuffer();
 
             var ts = new Date();
-            $('#query-' + this.nick).append('<p class="event ' + event + '"><span class="timestamp">[' + ts.toLocaleTimeString() + ']</span> ' + message + "</p>");
+            $('#query-' + this.nick).append('<p class="event ' + event + '">' +
+                '<span class="timestamp">[' + ts.toLocaleTimeString() + ']</span> ' + message + "</p>");
         };
 
         this.print = function(event, message) {
@@ -94,8 +100,13 @@ function Webchat(nickname, debug) {
         this.hasBuffer = false;
 
         this.createBuffer = function() {
-            $('#buffers').append('<div role="tabpanel" class="tab-pane fade" id="chan-' + this.name +'"></div>');
-            $('#menu-content').append('<li id="tab-chan-'+ this.name + '"><a href="#chan-'+ this.name + '" aria-controls="chan-' + this.name + '" role="tab" data-toggle="tab"><i class="fa fa-hashtag fa-lg"></i> ' + this.name + ' <span class="badge">3</span></a></li>');
+            $('#buffers').append('<div role="tabpanel" class="tab-pane fade" id="chan-' +
+                this.name +'"></div>');
+
+            $('#menu-content').append('<li id="tab-chan-'+ this.name + '"><a href="#chan-' +
+                this.name + '" aria-controls="chan-' + this.name +
+                '" role="tab" data-toggle="tab"><i class="fa fa-hashtag fa-lg"></i> ' +
+                this.name + ' <span class="badge">3</span></a></li>');
             this.hasBuffer = true;
         };
 
@@ -104,7 +115,9 @@ function Webchat(nickname, debug) {
                 this.createBuffer();
 
             var ts = new Date();
-            $('#chan-' + this.name).append('<p class="event ' + event + '"><span class="timestamp">[' + ts.toLocaleTimeString() + ']</span> ' + message + "</p>");
+            $('#chan-' + this.name).append('<p class="event ' + event +
+                '"><span class="timestamp">[' + ts.toLocaleTimeString() + ']</span> ' +
+                message + "</p>");
         };
 
         this.print = function(event, message) {
@@ -159,11 +172,11 @@ function Webchat(nickname, debug) {
     /** a note on this emit/emit_now business
     *
     * emit() will queue an event to run as soon as possible, meaning it will let all other emit() calls
-    * that occured before it to run first. if the queue is empty, emit() shorcuts right to emit_now().
+    * that occurred before it to run first. if the queue is empty, emit() shortcuts right to emit_now().
     *
     * emit_now() will fire 1 event, then check to see if there are any pending events to run. if there's
     * no work to do, it shuts down and waits for emit() to start it back up.
-    * -- sam
+    * -- Sam
     **/
 
     function emit(ev_name, args) {
@@ -274,8 +287,10 @@ function Webchat(nickname, debug) {
         // if there aren't any event handlers for this, dump it to the status window
         if(! emit("irc cmd " + message.command.toLowerCase(), message))
             message.prefix ?
-                $("#ircData").append('<p class="event server-raw-prefixed"> !' + message.prefix + " " + message.params.join(" ") + "</p>") :
-                $("#ircData").append('<p class="event server-raw> -!- ' + message.params.join(" ") + "</p>");
+                $("#ircData").append('<p class="event server-raw-prefixed"> !' +
+                    message.prefix + " " + message.params.join(" ") + "</p>") :
+                $("#ircData").append('<p class="event server-raw> -!- '
+                    + message.params.join(" ") + "</p>");
     }
 
     // takes a message object and build it into a string that can be sent to the server
@@ -421,7 +436,7 @@ function Webchat(nickname, debug) {
 
             sendMsg({
                 command: "PONG",
-                params: msg.params || [ ] // handles servers with and without the pingcookie
+                params: msg.params || [ ] // handles servers with and without the PINGCOOKIE
             });
 
         });
@@ -495,7 +510,11 @@ function Webchat(nickname, debug) {
             u.addChan(c);
             c.addUser(u);
 
-            var joinmsg = "--> " + u.nick + " " + (account ? "[" + account + "] " : "") + (realname ? "(" + realname + ") " : "") + "(" + u.userHost() +") has joined #" + name;
+            var joinmsg = "--> " + u.nick + " " +
+                (account ? "[" + account + "] " : "") +
+                (realname ? "(" + realname + ") " : "") +
+                "(" + u.userHost() +") has joined #" + name;
+
             c.print("user-join", joinmsg);
 
             // TODO: update the nicklist
@@ -523,7 +542,9 @@ function Webchat(nickname, debug) {
             c.delUser(u.nick);
             u.delChan(c.name);
 
-            c.print("user-part", "<-- " + u.nick + " (" + u.userHost() +") parted #" + name + ( reason ? " (" + reason + ")" : "" ));
+            c.print("user-part", "<-- " + u.nick +
+                " (" + u.userHost() +") parted #" +
+                name + ( reason ? " (" + reason + ")" : "" ));
             // TODO: remove user from the nicklist
         });
 
@@ -539,7 +560,9 @@ function Webchat(nickname, debug) {
             Object.values(u.channels).forEach(function(c) {
 
                 c.delUser(u.nick);
-                c.print("user-quit", "<-- " + u.nick + " (" + u.userHost() + ") quit" + (reason ? " (" + reason + ")" : ""));
+                c.print("user-quit", "<-- " + u.nick +
+                    " (" + u.userHost() + ") quit" +
+                    (reason ? " (" + reason + ")" : ""));
             });
 
             delUser(u.nick);
@@ -649,7 +672,7 @@ function Webchat(nickname, debug) {
 
         on("irc cmd chghost", function(msg) {
 
-            // sileneces the extremely annoying fake quit/join for changed hosts
+            // silences the extremely annoying fake quit/join for changed hosts
             var newuserhost = msg.params[0] + "@" + msg.params[1];
             var olduserhost = msg.prefix.split("!")[0];
 
