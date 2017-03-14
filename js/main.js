@@ -28,7 +28,7 @@ function Webchat(nickname, debug) {
         }
     };
 
-    me.capIsEnabled = function(cap) {
+    me.isCapEnabled = function(cap) {
 
         if (me.enabledCaps.indexOf(cap) !== -1)
             return true;
@@ -313,7 +313,7 @@ function Webchat(nickname, debug) {
 
             var account, realname;
 
-            if (me.capIsEnabled("extended-join")) {
+            if (me.isCapEnabled("extended-join")) {
                 account = (msg.params[1] === '*' ? null : msg.params[1]);
                 realname = msg.params[2];
             }
