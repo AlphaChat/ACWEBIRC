@@ -91,6 +91,19 @@ function Webchat(nickname, debug) {
         this.print = function(event, message) {
             this.appendBuffer(event, message);
         };
+
+        this.propagate = function(cb) {
+
+            Object.values(this.channels).forEach(function(c) {
+                cb(c);
+            });
+        };
+
+        this.propagateMsg = function(event, message) {
+            this.propagate(function(c) {
+                c.print(event, message);
+            });
+        };
     }
 
     function Channel(name) {
@@ -545,6 +558,10 @@ function Webchat(nickname, debug) {
             c.print("user-part", "<-- " + u.nick +
                 " (" + u.userHost() +") parted #" +
                 name + ( reason ? " (" + reason + ")" : "" ));
+
+            if (! Object.values(u.channels).length)
+                delUser(u.nick);
+
             // TODO: remove user from the nicklist
         });
 
@@ -557,7 +574,7 @@ function Webchat(nickname, debug) {
             if(! u)
                 return;
 
-            Object.values(u.channels).forEach(function(c) {
+            u.propagate(function(c) {
 
                 c.delUser(u.nick);
                 c.print("user-quit", "<-- " + u.nick +
@@ -575,12 +592,23 @@ function Webchat(nickname, debug) {
             var newnick = msg.params[0];
 
             var u = findUser(msg.prefix);
+            var oldnick = u.nick;
             if (u) {
 
                 u.nick = newnick;
                 u.renameBuffer(newnick);
+                delUser(oldnick);
+                addUser(u);
             }
-            // TOCO: update all nicklists across all buffers, and any rename any query windows
+
+            u.propagate(function(c) {
+
+                c.print("user-nick", oldnick + " is now known as " + newnick);
+                c.addUser(u);
+                c.delUser(oldnick);
+            });
+
+            // TODO: update all nicklists across all buffers, and any rename any query windows
         });
 
         on("irc cmd privmsg", function(msg) {
@@ -684,7 +712,7 @@ function Webchat(nickname, debug) {
             u.user = msg.params[0];
             u.host = msg.params[1];
 
-            appendChanBuffer("--- " + u.nick + " changed host from (" + olduserhost + ") to (" + newuserhost + ")");
+            u.propagateMsg("--- " + u.nick + " changed host from (" + olduserhost + ") to (" + newuserhost + ")");
         });
 
         // Return ourselves

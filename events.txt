@@ -2,5 +2,8 @@ CSS events
 
 user-chan-msg           when someone sends a privmsg to a channel (not us)
 user-query-msg          privmsg to us in private
+user-join               printed to channel buffers where a user (possibly us) joined
+user-part               printed to channel buffers where a user (possibly us) parted
+user-quit               printed to each channel buffer we shared a common room with when a user quits
 server-raw              message dumped to the status window, but no prefix (usually an unhandled command)
 server-raw-prefixed     message dumped to the status window, with a prefix (usually some kind of info notice from the server)
