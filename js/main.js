@@ -59,12 +59,15 @@ function Webchat(nickname, debug) {
         // if there are pending signals, queue this to run as soon as possible
         // otherwise, run it now
 
+        if(! signals[ev_name])
+            return false;
+
         if(signals_pending.length) {
             signals_pending.append([ ev_name, args ]);
         } else {
             emit_now(ev_name, args);
         }
-
+        return true;
     }
 
     function emit_now(ev_name, args) {
@@ -98,11 +101,6 @@ function Webchat(nickname, debug) {
 
     function parseData(data) {
         data = data.trim();
-
-        if (me.debugMode) {
-            console.log("[DEBUG] Parsing " + data);
-            $("#ircData").append("<p>" + data + "</p>");
-        }
 
         var tokens = data.split(' '),
             tags = {},
@@ -161,7 +159,11 @@ function Webchat(nickname, debug) {
 
         console.log(JSON.stringify(message, null, 4));
 
-        emit("irc cmd " + message.command.toLowerCase(), message);
+        // if there aren't any event handlers for this, dump it to the status window
+        if(! emit("irc cmd " + message.command.toLowerCase(), message))
+            message.prefix ?
+                $("#ircData").append('<p class="event server-raw-prefixed"> !' + message.prefix + " " + message.params.join(" ") + "</p>") :
+                $("#ircData").append('<p class="event server-raw> -!- ' + message.params.join(" ") + "</p>");
     }
 
     // takes a message object and build it into a string that can be sent to the server

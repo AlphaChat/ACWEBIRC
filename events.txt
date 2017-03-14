@@ -2,3 +2,5 @@ CSS events
 
 user-chan-msg           when someone sends a privmsg to a channel (not us)
 user-query-msg          privmsg to us in private
+server-raw              message dumped to the status window, but no prefix (usually an unhandled command)
+server-raw-prefixed     message dumped to the status window, with a prefix (usually some kind of info notice from the server)
