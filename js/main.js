@@ -3,17 +3,129 @@ function Webchat(nickname, debug) {
     var me = {
         connected: false,
         userInfo: {nick: nickname},
-        channels: [ ],
-        queries: [ ],
-        serverInfo: {caps:[]},
-        supportedCaps: ['sasl', 'away-notify', 'extended-join', 'chghost'],
+        channels: { },
+        registered: false,
+        users: { },
+        isupport: { },
+        supportedCaps: ['sasl', 'away-notify', 'extended-join', 'chghost', 'userhost-in-names'],
         enabledCaps: [ ],
         debugMode: debug
     },
     ws = [],
+    signals = {},
+    signals_pending = [],
+    mode2prefix = { };
 
-    signals = {};
-    signals_pending = [];
+    function User(prefix, real, acct) {
+
+        var nuh = prefix.split("!", 2);
+        var uh = nuh[1].split("@", 2);
+
+        this.nick = nuh[0];
+        this.user = uh[0];
+        this.host = uh[1];
+        this.real = real || '';
+        this.acct = acct || '';
+        this.channels = { };
+        this.hasBuffer = false;
+
+
+        this.userHost = function() {
+
+            return nick.user + "@" + nick.host;
+        };
+
+        this.findChan = function(name) {
+            return this.channels[name];
+        };
+
+        this.addChan = function(chan) {
+
+            this.channels[chan.name] = chan;
+        };
+
+        this.delChan = function(name) {
+            delete this.channels[name];
+        };
+
+        this.renameBuffer = function(newname) {
+            var oldname = this.nick;
+
+            $('#buffers').each(function(index) {
+                console.log("buffers " + index + " id is "+ $(this).attr("id") );
+                if ($(this).attr("id") === "query-" + oldname) {
+                    console.log("renaming buffer tab from" + oldname + " to " + newname);
+                    $(this).set("id", "query-" + newname);
+                }
+            });
+
+            $('#menu-content').each(function(index) {
+                console.log("menu-content " + index + " id is "+ $(this).attr("id") );
+                if ($(this).attr("id") === "tab-query-" + oldname) {
+                    console.log("renaming buffer display from " + oldname + " to " + newname);
+                    $(this).set("id", "tab-query-", newname);
+                }
+            });
+        };
+
+        this.createBuffer = function() {
+            this.hasBuffer = true;
+            $('#buffers').append('<div role="tabpanel" class="tab-pane fade" id="query-' + this.nick +'"></div>');
+            $('#menu-content').append('<li id="tab-query-'+ this.nick + '"><a href="#query-'+ this.nick + '" aria-controls="query-' + this.nick + '" role="tab" data-toggle="tab"><i class="fa fa-comments fa-lg"></i> ' + this.nick + ' <span class="badge">3</span></a></li>');
+        };
+
+        this.appendBuffer = function(event, message) {
+            if (! this.hasBuffer)
+                this.createBuffer();
+
+            var ts = new Date();
+            $('#query-' + this.nick).append('<p class="event ' + event + '"><span class="timestamp">[' + ts.toLocaleTimeString() + ']</span> ' + message + "</p>");
+        };
+
+        this.print = function(event, message) {
+            this.appendBuffer(event, message);
+        };
+    }
+
+    function Channel(name) {
+        this.name = name;
+        this.users = { };
+        this.topic = '';
+        this.hasBuffer = false;
+
+        this.createBuffer = function() {
+            $('#buffers').append('<div role="tabpanel" class="tab-pane fade" id="chan-' + this.name +'"></div>');
+            $('#menu-content').append('<li id="tab-chan-'+ this.name + '"><a href="#chan-'+ this.name + '" aria-controls="chan-' + this.name + '" role="tab" data-toggle="tab"><i class="fa fa-hashtag fa-lg"></i> ' + this.name + ' <span class="badge">3</span></a></li>');
+            this.hasBuffer = true;
+        };
+
+        this.appendBuffer = function (event, message) {
+            if (! this.hasBuffer)
+                this.createBuffer();
+
+            var ts = new Date();
+            $('#chan-' + this.name).append('<p class="event ' + event + '"><span class="timestamp">[' + ts.toLocaleTimeString() + ']</span> ' + message + "</p>");
+        };
+
+        this.print = function(event, message) {
+            this.appendBuffer(event, message);
+
+        };
+
+        this.addUser = function(user) {
+
+            this.users[user.nick] = user;
+        };
+
+        this.findUser = function(nick) {
+            return this.users[nick];
+        };
+
+        this.delUser = function(nick) {
+            delete this.users[nick];
+        };
+
+    }
 
     var EAT_NONE = 1; // the default, keep emitting this signal
     var EAT_ALL = 4;  // if any callback returns this, stop emitting
@@ -63,7 +175,7 @@ function Webchat(nickname, debug) {
             return false;
 
         if(signals_pending.length) {
-            signals_pending.append([ ev_name, args ]);
+            signals_pending.push([ ev_name, args ]);
         } else {
             emit_now(ev_name, args);
         }
@@ -225,30 +337,69 @@ function Webchat(nickname, debug) {
         sendData(buildMessage(msg));
     }
 
-    function createChanBuffer(chan) {
-        me.channels.push(chan);
+    function findUser(nick) {
 
-        $('#buffers').append('<div role="tabpanel" class="tab-pane fade" id="chan-' + chan +'"></div>');
-        $('#menu-content').append('<li id="tab-chan-'+ chan + '"><a href="#chan-'+ chan + '" aria-controls="chan-' + chan + '" role="tab" data-toggle="tab"><i class="fa fa-hashtag fa-lg"></i> ' + chan + ' <span class="badge">3</span></a></li>');
+        nick = nick.split("!", 1)[0]; // just in case we get a prefix
+        return me.users[nick];
     }
 
-    function createQueryBuffer(query) {
-        me.queries.push(query);
+    function addUser(user) {
 
-        $('#buffers').append('<div role="tabpanel" class="tab-pane fade" id="query-' + query +'"></div>');
-        $('#menu-content').append('<li id="tab-query-'+ query + '"><a href="#query-'+ query + '" aria-controls="query-' + query + '" role="tab" data-toggle="tab"><i class="fa fa-comments fa-lg"></i> ' + query + ' <span class="badge">3</span></a></li>');
+        me.users[user.nick] = user;
     }
 
-    function appendBuffer(buffer, event, message) {
-        $('#' + buffer).append('<p class="event ' + event + '">' + message + "</p>");
+    function delUser(nick) {
+
+        delete me.users[nick];
     }
 
-    function appendChanBuffer(chan, event, message) {
-        appendBuffer("chan-" + chan, event, message);
+    function findChan(chan) {
+
+        return me.channels[chan];
     }
 
-    function appendQueryBuffer(query, event, message) {
-        appendBuffer("query-" + query, event, message);
+    function addChan(chan) {
+
+        me.channels[chan.name] = chan;
+    }
+
+    function delChan(name) {
+
+       delete me.channels[name];
+    }
+
+    function parsePrefixes() {
+
+        if (! me.isupport.PREFIX)
+            return;
+
+        var modes = [];
+        var prefixes = [];
+        var in_modes = true;
+        var prefixstr = me.isupport.PREFIX;
+
+        for (var i = prefixstr - 1; i >= 0; i--) {
+
+            if(prefixstr[i] === "(")
+                continue;
+
+            if(prefixstr[i] === ")") {
+                in_modes = false;
+                continue;
+            }
+
+            if(in_modes) {
+                modes.push(prefixstr[i]);
+                continue;
+            }
+
+            prefixes.push(prefixstr[i]);
+        }
+
+        for (var n = 0; n < modes.length; n++) {
+            mode2prefix[modes[n]] = prefies[n];
+        }
+
     }
 
     function construct() {
@@ -303,6 +454,9 @@ function Webchat(nickname, debug) {
 
         on("irc cmd 433", function(msg) {
 
+            if (me.registered)
+                return;
+
             me.userInfo.nick += "_";
             sendMsg({ command: "NICK", params: [ me.userInfo.nick ] });
         });
@@ -310,52 +464,86 @@ function Webchat(nickname, debug) {
         on("irc cmd join", function(msg) {
 
             // someone (possibly us) joined a channel
-            var chan = msg.params[0].toLowerCase().substring(1);
-            var nick = msg.prefix.split('!')[0];
 
-            var account, realname;
+            var name = msg.params[0].toLowerCase().substring(1);
+
+            var account;
+            var realname;
+            var c;
+            var u;
 
             if (me.isCapEnabled("extended-join")) {
                 account = (msg.params[1] === '*' ? null : msg.params[1]);
                 realname = msg.params[2];
             }
 
-            var joinmsg = "--> " + nick + " " + (account ? "[" + account + "] " : "") + (realname ? "(" + realname + ") " : "") + " has joined #" + chan;
+            c = findChan(name);
+            if (! c) {
 
-            // TODO: lol fix this to use the correct casemapping xD
-            if (nick === me.userInfo.nick) {
+                c = new Channel(name);
+                c.createBuffer();
 
-                if (me.channels.indexOf(chan) !== -1)
-                    return; // uh we're already on that channel
-
-                createChanBuffer(chan);
+                addChan(c);
             }
 
-            appendChanBuffer(chan, "user-join", joinmsg);
+            u = findUser(msg.prefix);
+            if (! u) {
+                u = new User(msg.prefix, realname, account);
+
+                u.addChan(c);
+                c.addUser(u);
+
+                addUser(u);
+            }
+
+            var joinmsg = "--> " + u.nick + " " + (account ? "[" + account + "] " : "") + (realname ? "(" + realname + ") " : "") + " has joined #" + name;
+            c.print("user-join", joinmsg);
+
             // TODO: update the nicklist
         });
 
         on("irc cmd part", function(msg) {
 
             // someone (possibly us) left a channel
-            var chan = msg.params[0];
+            var name = msg.params[0].toLowerCase().substring(1);
 
-            if (msg.prefix.startsWith(me.userInfo.nick)) {
+            var reason = msg.params[1];
 
-                var idx = me.channels.indexOf(chan);
-                if (idx !== -1)
-                    me.channels.splice(idx, 1);
+            var c = findChan(name);
+            var u = findUser(msg.prefix);
 
+            if (! c || ! u)
+                return;
+
+            if (u.nick == me.userInfo.nick) {
+                delChan(c.name);
                 // TODO: destroy the buffer
                 return;
             }
-            appendChanBuffer(chan, "user-part", "<-- " + nick + " has parted #" + chan);
+
+            c.delUser(u.nick);
+            u.delChan(c.name);
+
+            c.print("user-part", "<-- " + u.nick + " parted #" + name + ( reason ? " (" + reason + ")" : "" ));
             // TODO: remove user from the nicklist
         });
 
         on("irc cmd quit", function(msg) {
 
             // TODO: find each buffer a user is in and display them quitting + delete from nicklist
+            var reason = msg.params[0];
+
+            u = findUser(msg.prefix);
+            if(! u)
+                return;
+
+            u.channels.forEach(function(c) {
+
+                c.delUser(u.nick);
+                c.print("user-quit", "<-- " + u.nick + " (" + u.userHost() + ") quit" + (reason ? " (" + reason + ")" : ""));
+            });
+
+            delUser(u.nick);
 
         });
 
@@ -364,40 +552,117 @@ function Webchat(nickname, debug) {
             // someone changed their nick, possibly us
             var newnick = msg.params[0];
 
-            if (msg.prefix.startsWith(me.userInfo.nick)) {
+            var u = findUser(msg.prefix);
+            if (u) {
 
-                me.userInfo.nick = newnick;
-                // TODO: update any internal labels that display our nick to the user,
+                u.nick = newnick;
+                u.renameBuffer(newnick);
             }
-            // TOCO: update all nicklists across all buffers
+            // TOCO: update all nicklists across all buffers, and any rename any query windows
         });
 
         on("irc cmd privmsg", function(msg) {
 
-            var target = msg.params[0].toLowerCase().substring(1);
+            var nick = msg.prefix.split("!", 1)[0];
+            var target = msg.params[0];
             var text = msg.params[1];
-            var nick = msg.prefix.split('!')[0];
 
-            if (me.channels.indexOf(target) === -1) {
+            var c, u;
 
-                if (me.queries.indexOf(nick) === -1)
-                    createQueryBuffer(nick);
+            c = findChan(target.toLowerCase().substring(1));
+            if(c) {
+                c.print("user-chan-msg", "&lt;" + nick + "&gt; " + text);
+            } else if (target == me.userInfo.nick) {
 
-                appendQueryBuffer(nick, "user-query-msg", "&lt;" + nick + "&gt; " + text);
+                u = findUser(msg.prefix);
+                if (! u) {
+                    u = new User(msg.prefix);
+                    u.createBuffer();
+                    addUser(u);
+                }
 
-            } else {
-                appendChanBuffer(target, "user-chan-msg", "&lt;" + nick + "&gt; " + text);
+                u.print("user-query-msg", "&lt;" + nick + "&gt; " + text);
             }
+
+        });
+
+        // NAMES (supports userhost-in-names)
+        // FIXME: strip the usermode prefix off of the name
+        // and do soemthing meaningful with it
+        on("irc cmd 353", function(msg) {
+
+            var name = msg.params[2].toLowerCase().substring(1);
+            var users = msg.params[3].split(" ");
+
+            var c = findChan(name);
+
+            if(! c)
+                return;
+
+            users.forEach(function(nick) {
+
+                u = findUser(nick);
+                if(! u) {
+
+                    u = new User(nick);
+                    addUser(u);
+                }
+
+                if(! u.channels[name])
+                    u.addChan(c);
+
+                if(! c.users[c.nick])
+                    c.addUser(u);
+            });
+
+        });
+
+        on("irc cmd 001", function(msg) {
+
+            me.registered = true;
+            sendMsg({ command: "VERSION" });
+        });
+
+        on("irc cmd 005", function(msg) {
+
+            msg.params.shift(); // get the name out
+
+            var last = msg.params.indexOf("are supported by this server");
+
+            if (last === -1)
+                return;
+
+            msg.params.splice(last, 1);
+
+            msg.params.forEach(function(token) {
+
+                var kv = token.split("=");
+
+                if(! kv[1])
+                    kv[1] = true;
+
+                me.isupport[kv[0]] = kv[1];
+            });
+
+            parsePrefixes();
 
         });
 
         on("irc cmd chghost", function(msg) {
 
             // sileneces the extremely annoying fake quit/join for changed hosts
-            var newhost = msg.params[0] + "@" + msg.params[1];
-            var nuh = msg.prefix.split("!", 1);
+            var newuserhost = msg.params[0] + "@" + msg.params[1];
+            var olduserhost = msg.prefix.split("!")[0];
 
-            appendChanBuffer("--- " + nuh[0] + " changed host from (" + nuh[1] + ") to (" + newhost + ")");
+            var u = findUser(msg.prefix);
+
+            if (! u)
+                return;
+
+            u.user = msg.params[0];
+            u.host = msg.params[1];
+
+            appendChanBuffer("--- " + u.nick + " changed host from (" + olduserhost + ") to (" + newuserhost + ")");
         });
 
         // Return ourselves
