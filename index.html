@@ -195,8 +195,8 @@
         <i class="fa fa-bars fa-2x toggle-btn" data-toggle="collapse" data-target="#menu-content"></i>
             <div class="menu-list">
                 <ul id="menu-content" class="menu-content collapse out" role="tablist">
-                    <li role="presentation" class="active">
-                      <a href="#ircData" aria-controls="ircData" role="tab" data-toggle="tab">
+                    <li role="presentation" class="active" id="tab-server">
+                      <a href="#ircData" aria-controls="ircData" role="tab" data-toggle="tab" id="tab-server">
                       <i class="fa fa-server fa-lg"></i> Server
                       </a>
                     </li>
@@ -224,7 +224,7 @@
         $(document).ready(function() {
            $("#msgInput").on('keypress', function(e) {
               if (e.which == 13) {
-                  $.webirc.send($(this).val());
+                  $.webirc.inputBox($(this).val());
                   $(this).val('');
               }
            });

@@ -28,7 +28,8 @@ function Webchat(nickname, debug) {
         this.acct = acct || '';
         this.channels = { };
         this.hasBuffer = false;
-
+        this.is_user = true;
+        this.is_chan = false;
 
         this.userHost = function() {
 
@@ -75,7 +76,7 @@ function Webchat(nickname, debug) {
 
             $('#menu-content').append('<li id="tab-query-' + this.nick +
                 '"><a href="#query-'+ this.nick + '" aria-controls="query-' + this.nick +
-                '" role="tab" data-toggle="tab"><i class="fa fa-comments fa-lg"></i> ' +
+                '" role="tab" data-toggle="tab" name="' + this.nick + '"><i class="fa fa-comments fa-lg"></i> ' +
                 this.nick + ' <span class="badge">3</span></a></li>');
         };
 
@@ -111,6 +112,8 @@ function Webchat(nickname, debug) {
         this.users = { };
         this.topic = '';
         this.hasBuffer = false;
+        this.is_chan = true;
+        this.is_user = false;
 
         this.createBuffer = function() {
             $('#buffers').append('<div role="tabpanel" class="tab-pane fade" id="chan-' +
@@ -118,7 +121,7 @@ function Webchat(nickname, debug) {
 
             $('#menu-content').append('<li id="tab-chan-'+ this.name + '"><a href="#chan-' +
                 this.name + '" aria-controls="chan-' + this.name +
-                '" role="tab" data-toggle="tab"><i class="fa fa-hashtag fa-lg"></i> ' +
+                '" role="tab" data-toggle="tab" name="' + this.name + '"><i class="fa fa-hashtag fa-lg"></i> ' +
                 this.name + ' <span class="badge">3</span></a></li>');
             this.hasBuffer = true;
         };
@@ -139,7 +142,6 @@ function Webchat(nickname, debug) {
         };
 
         this.addUser = function(user) {
-
             this.users[user.nick] = user;
         };
 
@@ -359,6 +361,52 @@ function Webchat(nickname, debug) {
         sendData(data);
     };
 
+    me.inputBox = function(data) {
+
+        var id = $( "#menu-content" ).find(".active").attr("id");
+
+        console.log("active tab is " + id);
+        var buffer;
+        var type;
+
+        if(id !== "tab-server") {
+
+            var parts = id.split("-");
+
+            parts.shift();
+
+            type = parts.shift();
+            var name = parts.join("-");
+
+            if (type === "chan")
+                buffer = findChan(name);
+            else
+                buffer = findUser(name);
+
+            if (! buffer) {
+                console.log("couldn't find a " + type + " buffer for " + name);
+            }
+        }
+
+        if (data.charAt(0) === "/") {
+
+            var tokens = data.split(" ");
+            var cmd = tokens.shift().substring(1).toLowerCase();
+
+            if (emit("input command " + cmd, buffer, tokens))
+                return;
+
+            // pass thru to the server if emit didn't find any handlers for the command
+            sendData(data.substring(1));
+            return;
+        }
+
+        if (buffer) {
+            sendMsg({ command: "PRIVMSG", params: [ (type === "chan" ? "#" : "") + buffer.name, data ] });
+            buffer.print("self-msg", "&lt;" + me.userInfo.nick + "&gt; " + data);
+        }
+    };
+
     function sendMsg(msg) {
 
         on("client cmd " + msg.command.toLowerCase(), msg);
@@ -444,6 +492,26 @@ function Webchat(nickname, debug) {
         ws.onclose = function (e) {
             me.connected = false;
         };
+
+        /*
+        $("#menu-content a").on("shown.bs.tab", function(event) {
+
+            var name = $(event.target).text().trim();
+            console.log("active channel switched to " + name);
+            var buffer = findChan(name);
+
+            if (! buffer)
+                buffer = findUser(name);
+
+            if (! buffer) {
+                console.log("couldn't find a buffer for: " + name);
+                return;
+            }
+
+            me.activeWindow = buffer;
+            console.log(" --> " + JSON.stringify(me.activeWindow));
+        });
+        */
 
         on("irc cmd ping", function(msg) {
 
